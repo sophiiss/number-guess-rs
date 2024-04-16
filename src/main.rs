@@ -1,14 +1,32 @@
+use crossterm::{
+    cursor, execute,
+    terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType},
+};
 use rand::{rngs::ThreadRng, Rng};
-use std::io::{stdin, stdout, Write};
+use std::{
+    io::{stdin, stdout, Write},
+    thread,
+    time::Duration,
+};
 
 fn main() {
+    thread::sleep(Duration::from_secs(1));
+    clear_screen();
+
     let mut rng = rand::thread_rng();
+    let max_attempts = 5;
     greet();
 
     let random_number = generate_number(&mut rng);
 
-    println!("{}", random_number);
-    get_guess(random_number);
+    get_guess(&random_number, &max_attempts);
+}
+
+fn clear_screen() {
+    let (_, rows) = size().unwrap();
+    enable_raw_mode().unwrap();
+    execute!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, rows - 1)).unwrap();
+    disable_raw_mode().unwrap();
 }
 
 fn greet() {
@@ -18,7 +36,8 @@ fn greet() {
     stdout().flush().unwrap();
 
     read_input();
-    println!("\n");
+    clear_screen();
+    println!("You've got 5 guesses!");
 }
 
 fn generate_number(rng: &mut ThreadRng) -> u8 {
@@ -26,21 +45,49 @@ fn generate_number(rng: &mut ThreadRng) -> u8 {
     rng.gen_range(range)
 }
 
-fn get_guess(number: u8) {
-    print!("Guess the number: ");
-    stdout().flush().unwrap();
+fn get_guess(number: &u8, max_attempts: &i32) {
+    let mut current_attempts = 1;
 
-    match check_guess(parse_u8(), number) {
-        Some(_) => println!("You won!"),
-        None => println!("You lost :("),
+    loop {
+        print!(
+            "({}/{}) Guess the number: ",
+            &current_attempts, max_attempts
+        );
+        stdout().flush().unwrap();
+
+        let guess = parse_u8();
+
+        if guess == *number {
+            break game_won(number);
+        } else {
+            if current_attempts >= 5 {
+                break game_lost(number);
+            }
+            current_attempts += 1;
+            clear_screen();
+            println!("\nWrong answer, but here's a tip:");
+            println!("{}\n", send_tip(number, guess));
+            continue;
+        }
     }
 }
 
-fn check_guess(guess: u8, number: u8) -> Option<u8> {
-    if guess == number {
-        return Some(number);
+fn send_tip(number: &u8, last_guess: u8) -> String {
+    if last_guess > *number {
+        format!("The number is less than {}", last_guess)
+    } else {
+        format!("The number is greater than {}", last_guess)
     }
-    None
+}
+
+fn game_won(number: &u8) {
+    clear_screen();
+    println!("\nYou won!\nThe number was {}!", *number);
+}
+
+fn game_lost(number: &u8) {
+    clear_screen();
+    println!("\nYou lost :(\nThe number was {}.", *number);
 }
 
 fn read_input() -> String {
